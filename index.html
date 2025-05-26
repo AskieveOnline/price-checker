@@ -21,16 +21,18 @@
             const resultDiv = document.getElementById("result");
             resultDiv.innerHTML = "Searching...";
 
-            // Use a free CORS proxy to avoid blocking
-            const proxyUrl = "https://api.allorigins.win/get?url=";
-            const googleShoppingUrl = `https://www.google.com/search?q=${encodeURIComponent(product)}&tbm=shop`;
-
+            // Replace with your ScraperAPI key
+            const API_KEY = "a4ee6156c39a100b5d4fb2727240e9f9"; 
+            const encodedProduct = encodeURIComponent(product);
+            
             try {
-                const response = await fetch(proxyUrl + encodeURIComponent(googleShoppingUrl));
-                const data = await response.json();
-                const html = data.contents;
+                // ScraperAPI call to Google Shopping
+                const response = await fetch(
+                    `https://api.scraperapi.com/?api_key=${API_KEY}&url=https://www.google.com/search?q=${encodedProduct}&tbm=shop`
+                );
+                const html = await response.text();
 
-                // Extract prices (simplified, may need adjustments)
+                // Parse HTML to extract prices (simplified)
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, "text/html");
                 const prices = Array.from(doc.querySelectorAll(".a8Pemb")).map(el => el.textContent.trim());
@@ -44,6 +46,7 @@
                 }
             } catch (error) {
                 resultDiv.innerHTML = "Error fetching data. Try again later.";
+                console.error(error);
             }
         }
     </script>
