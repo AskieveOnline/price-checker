@@ -1,44 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Advanced Price Finder</title>
+    <title>Price Finder</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
-        input { flex: 1; padding: 12px; border: 1px solid #dfe1e5; border-radius: 24px; font-size: 16px; }
-        button { padding: 12px 24px; background: #1a73e8; color: white; border: none; border-radius: 24px; cursor: pointer; }
-        #result { margin-top: 30px; min-height: 100px; }
-        .price { font-size: 28px; color: #1a73e8; font-weight: bold; }
-        .debug { background: #f1f3f4; padding: 15px; border-radius: 8px; margin-top: 20px; font-family: monospace; white-space: pre-wrap; }
-        .error { color: #d93025; padding: 10px; background: #fce8e6; border-radius: 4px; }
-        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,0,0,.1); border-radius: 50%; border-top-color: #1a73e8; animation: spin 1s ease-in-out infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .search-container { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 12px 24px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #result { margin-top: 20px; min-height: 100px; padding: 15px; border-radius: 4px; }
+        .price { font-size: 24px; color: #1a73e8; font-weight: bold; }
+        .error { color: #d93025; background-color: #fce8e6; padding: 10px; }
+        .loading { color: #5f6368; }
+        .debug { background: #f1f3f4; padding: 15px; margin-top: 20px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
     </style>
 </head>
 <body>
-    <h1>🔍 Advanced Price Finder</h1>
-    <div class="search-box">
-        <input type="text" id="product" placeholder="Enter product name..." autofocus>
-        <button onclick="searchPrice()">Find Lowest Price</button>
+    <h1>Lowest Price Finder</h1>
+    <div class="search-container">
+        <input type="text" id="product" placeholder="Enter product name...">
+        <button onclick="searchPrice()">Search</button>
     </div>
     <div id="result"></div>
     <div id="debug" class="debug" style="display: none;"></div>
-    <button onclick="toggleDebug()" style="margin-top: 10px; background: #f1f3f4; color: #5f6368;">Toggle Debug Info</button>
+    <button onclick="toggleDebug()" style="margin-top: 10px;">Toggle Debug</button>
 
     <script>
-        // CONFIGURATION
-        const SCRAPER_API_KEY = "a4ee6156c39a100b5d4fb2727240e9f9"; // Keep quotes!
-        const FALLBACK_SELECTORS = [
-            ".tAxDx", ".a8Pemb", ".TL92Hc", // Google Shopping selectors
-            ".g9WBQb", ".HRLxBb", ".e10twf" // Updated July 2024
-        ];
+        // Configuration
+        const API_KEY = "YOUR_SCRAPERAPI_KEY"; // Keep the quotes!
+        const TIMEOUT = 45000; // 45 seconds timeout
         
-        // STATE
-        let debugMode = false;
-        
-        // DOM ELEMENTS
+        // DOM Elements
         const resultDiv = document.getElementById("result");
         const debugDiv = document.getElementById("debug");
+        let debugMode = false;
         
         async function searchPrice() {
             const product = document.getElementById("product").value.trim();
@@ -47,79 +41,64 @@
                 return;
             }
             
-            resultDiv.innerHTML = '<div style="text-align:center"><span class="loading"></span> Searching Google Shopping...</div>';
-            debugDiv.textContent = `Starting search for: ${product}`;
+            resultDiv.innerHTML = '<div class="loading">Searching Google Shopping...</div>';
+            debugLog(`Starting search for: "${product}"`);
             
             try {
-                // PHASE 1: Try ScraperAPI with render.js
-                debugLog("Attempting ScraperAPI with render...");
-                const apiUrl = `https://api.scraperapi.com/?api_key=${SCRAPER_API_KEY}&render=true&url=https://www.google.com/search?q=${encodeURIComponent(product)}&tbm=shop`;
+                const apiUrl = `https://api.scraperapi.com/?api_key=${API_KEY}&render=true&url=https://www.google.com/search?q=${encodeURIComponent(product)}&tbm=shop`;
                 
-                const response = await fetchWithTimeout(apiUrl, 30000);
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                debugLog("Fetching URL:", apiUrl);
+                const response = await fetchWithTimeout(apiUrl, TIMEOUT);
+                
+                if (!response.ok) {
+                    throw new Error(`API returned status: ${response.status}`);
+                }
                 
                 const html = await response.text();
-                debugLog("Raw HTML received", html);
+                debugLog("Received HTML (truncated):", html.substring(0, 500) + "...");
                 
-                // Parse and extract data
                 const prices = extractPrices(html);
-                debugLog("Extracted prices:", prices);
-                
                 if (prices.length === 0) {
-                    // PHASE 2: Fallback to direct scraping if API fails
-                    debugLog("No prices found, trying alternative method...");
-                    showError("No prices found. Google may be blocking requests. Try again later.");
+                    showError("No prices found in the response. Google may have blocked the request.");
+                    debugLog("Full HTML for debugging:", html);
                     return;
                 }
                 
-                displayResults(prices);
+                displayResult(prices);
                 
             } catch (error) {
                 console.error("Search failed:", error);
                 showError(`Error: ${error.message}`);
-                debugLog("Full error:", error);
+                debugLog("Error details:", error);
             }
         }
         
         function extractPrices(html) {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, "text/html");
-            const results = [];
+            const priceElements = doc.querySelectorAll(".tAxDx, .a8Pemb, .TL92Hc, .g9WBQb, .HRLxBb");
             
-            // Try all known selectors
-            FALLBACK_SELECTORS.forEach(selector => {
-                const elements = doc.querySelectorAll(selector);
-                elements.forEach(el => {
-                    const priceText = el.textContent.trim();
-                    const priceValue = parseFloat(priceText.replace(/[^\d.]/g, ""));
-                    if (!isNaN(priceValue)) {
-                        results.push({
-                            price: priceValue,
-                            element: el.outerHTML,
-                            selector: selector
-                        });
-                    }
-                });
+            const prices = [];
+            priceElements.forEach(el => {
+                const priceText = el.textContent.trim();
+                const priceValue = parseFloat(priceText.replace(/[^\d.]/g, ""));
+                if (!isNaN(priceValue)) {
+                    prices.push({
+                        value: priceValue,
+                        element: el.outerHTML
+                    });
+                }
             });
             
-            return results.sort((a, b) => a.price - b.price);
+            return prices.sort((a, b) => a.value - b.value);
         }
         
-        function displayResults(prices) {
-            if (prices.length === 0) {
-                showError("No valid prices found in the page");
-                return;
-            }
-            
+        function displayResult(prices) {
             const lowest = prices[0];
             resultDiv.innerHTML = `
-                <div style="text-align: center;">
-                    <div class="price">$${lowest.price.toFixed(2)}</div>
-                    <div style="color: #5f6368; margin-top: 10px;">
-                        Lowest price found from ${prices.length} listings
-                    </div>
-                    ${debugMode ? `<div class="debug-info">Used selector: ${lowest.selector}</div>` : ''}
-                </div>
+                <div class="price">$${lowest.value.toFixed(2)}</div>
+                <div>Found ${prices.length} prices | ${new Date().toLocaleTimeString()}</div>
+                ${debugMode ? `<div class="debug">Lowest price element: ${lowest.element}</div>` : ''}
             `;
         }
         
@@ -127,11 +106,11 @@
             resultDiv.innerHTML = `<div class="error">${message}</div>`;
         }
         
-        function debugLog(...args) {
+        function debugLog(...messages) {
             if (!debugMode) return;
-            debugDiv.textContent += '\n' + args.map(arg => 
-                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
-            ).join(' ');
+            debugDiv.textContent += messages.map(msg => 
+                typeof msg === 'object' ? JSON.stringify(msg, null, 2) : msg
+            ).join(' ') + '\n\n';
         }
         
         function toggleDebug() {
@@ -139,14 +118,27 @@
             debugDiv.style.display = debugMode ? 'block' : 'none';
         }
         
-        async function fetchWithTimeout(resource, timeout) {
+        async function fetchWithTimeout(url, timeout) {
             const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-            const response = await fetch(resource, {
-                signal: controller.signal
-            });
-            clearTimeout(id);
-            return response;
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    headers: {
+                        'Accept': 'text/html',
+                        'User-Agent': 'Mozilla/5.0'
+                    }
+                });
+                clearTimeout(timeoutId);
+                return response;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    throw new Error(`Request timed out after ${timeout/1000} seconds`);
+                }
+                throw error;
+            }
         }
     </script>
 </body>
