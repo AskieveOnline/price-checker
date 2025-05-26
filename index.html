@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lowest Price Finder</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        input { padding: 10px; width: 300px; }
+        button { padding: 10px 20px; background: #4285F4; color: white; border: none; }
+        #result { margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Find the Lowest Price on Google Shopping</h1>
+    <input type="text" id="product" placeholder="Enter product (e.g., iPhone 15)">
+    <button onclick="searchPrice()">Search</button>
+    <div id="result"></div>
+
+    <script>
+        async function searchPrice() {
+            const product = document.getElementById("product").value;
+            const resultDiv = document.getElementById("result");
+            resultDiv.innerHTML = "Searching...";
+
+            // Use a free CORS proxy to avoid blocking
+            const proxyUrl = "https://api.allorigins.win/get?url=";
+            const googleShoppingUrl = `https://www.google.com/search?q=${encodeURIComponent(product)}&tbm=shop`;
+
+            try {
+                const response = await fetch(proxyUrl + encodeURIComponent(googleShoppingUrl));
+                const data = await response.json();
+                const html = data.contents;
+
+                // Extract prices (simplified, may need adjustments)
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+                const prices = Array.from(doc.querySelectorAll(".a8Pemb")).map(el => el.textContent.trim());
+
+                if (prices.length > 0) {
+                    const numericPrices = prices.map(p => parseFloat(p.replace(/[^0-9.]/g, "")));
+                    const lowestPrice = Math.min(...numericPrices);
+                    resultDiv.innerHTML = `Lowest Price: $${lowestPrice}`;
+                } else {
+                    resultDiv.innerHTML = "No prices found. Try another product.";
+                }
+            } catch (error) {
+                resultDiv.innerHTML = "Error fetching data. Try again later.";
+            }
+        }
+    </script>
+</body>
+</html>
